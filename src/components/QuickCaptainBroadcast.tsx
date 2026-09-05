@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Dumbbell, Moon, Bell, AlertTriangle, Send, Sparkles, CheckCircle2, Shield, HeartPulse, Trophy } from 'lucide-react';
 import { Announcement, AnnouncementType } from '../types';
 import { StorageService } from '../utils/storage';
+import { sendCaptainFCMBroadcast } from '../utils/fcm';
 
 interface QuickCaptainBroadcastProps {
   onNotificationBroadcasted: (ann: Announcement) => void;
@@ -74,6 +75,13 @@ export function QuickCaptainBroadcast({ onNotificationBroadcasted }: QuickCaptai
     };
 
     StorageService.saveAnnouncement(ann);
+    // إرسال الإشعار الفوري عبر تقنية Firebase Cloud Messaging & Web Push
+    sendCaptainFCMBroadcast({
+      title: template.title,
+      body: template.content,
+      category: template.type === 'sleep' ? 'sleep' : template.type === 'training' ? 'training' : template.type === 'match' ? 'match' : 'general',
+      targetGroup,
+    });
     onNotificationBroadcasted(ann);
     setActivePreset(template.id);
     setTimeout(() => setActivePreset(null), 3000);
@@ -96,6 +104,13 @@ export function QuickCaptainBroadcast({ onNotificationBroadcasted }: QuickCaptai
     };
 
     StorageService.saveAnnouncement(ann);
+    // إرسال الإشعار الفوري المخصص لجميع هواتف اللاعبين
+    sendCaptainFCMBroadcast({
+      title: 'تنبيه مباشر من الكابتن زيد محمد خرشيد',
+      body: customMsg.trim(),
+      category: 'urgent',
+      targetGroup,
+    });
     onNotificationBroadcasted(ann);
     setCustomMsg('');
     setIsOpen(false);

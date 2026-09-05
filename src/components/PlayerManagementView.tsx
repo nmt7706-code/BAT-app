@@ -1,7 +1,8 @@
 import { useState, FormEvent, ChangeEvent } from 'react';
-import { Users, UserCheck, Plus, Search, Shield, Phone, Activity, Star, Trash2, Edit3, HeartPulse, Eye, Camera, Lock, X, Award, Flame, Send } from 'lucide-react';
+import { Users, UserCheck, Plus, Search, Shield, Phone, Activity, Star, Trash2, Edit3, HeartPulse, Eye, Camera, Lock, X, Award, Flame, Send, BellRing, Smartphone, CheckCircle2 } from 'lucide-react';
 import { PlayerRecord, UserSession } from '../types';
 import { StorageService } from '../utils/storage';
+import { sendCaptainFCMBroadcast } from '../utils/fcm';
 import { EvaluationModal } from './EvaluationModal';
 
 interface PlayerManagementViewProps {
@@ -22,6 +23,11 @@ export function PlayerManagementView({ session, players, onPlayersUpdated, onPla
   const [editingPlayer, setEditingPlayer] = useState<PlayerRecord | null>(null);
   const [inspectingPlayer, setInspectingPlayer] = useState<PlayerRecord | null>(null);
   const [evaluatingPlayer, setEvaluatingPlayer] = useState<PlayerRecord | null>(null);
+  const [directAlertPlayer, setDirectAlertPlayer] = useState<PlayerRecord | null>(null);
+  const [directAlertTitle, setDirectAlertTitle] = useState('');
+  const [directAlertMsg, setDirectAlertMsg] = useState('');
+  const [directAlertCategory, setDirectAlertCategory] = useState<'training' | 'sleep' | 'urgent' | 'recovery'>('training');
+  const [alertSuccessToast, setAlertSuccessToast] = useState<string | null>(null);
 
   // New Player Form State
   const [name, setName] = useState('');
@@ -112,6 +118,31 @@ export function PlayerManagementView({ session, players, onPlayersUpdated, onPla
     }
   };
 
+  const handleOpenDirectAlert = (player: PlayerRecord) => {
+    setDirectAlertPlayer(player);
+    setDirectAlertTitle(`تنبيه شخصي من الكابتن زيد للاعب ${player.name}`);
+    setDirectAlertMsg(`يرجى الالتزام بالموعد المحدد والتركيز على الخطة البدنية.`);
+    setDirectAlertCategory('training');
+  };
+
+  const handleSendDirectFCMAlert = (e: FormEvent) => {
+    e.preventDefault();
+    if (!directAlertPlayer || !directAlertMsg.trim()) return;
+
+    sendCaptainFCMBroadcast({
+      title: directAlertTitle.trim() || `تنبيه خاص: ${directAlertPlayer.name}`,
+      body: directAlertMsg.trim(),
+      category: directAlertCategory,
+      targetGroup: directAlertPlayer.ageGroup,
+      targetPlayerId: directAlertPlayer.id,
+    });
+
+    setAlertSuccessToast(`تم إرسال التنبيه الفوري بنجاح إلى هاتف اللاعب (${directAlertPlayer.name}) عبر FCM`);
+    setDirectAlertPlayer(null);
+    setDirectAlertMsg('');
+    setTimeout(() => setAlertSuccessToast(null), 4000);
+  };
+
   // Stats
   const totalPlayers = players.length;
   const matchReadyCount = players.filter((p) => p.readiness === 'جاهز للمباريات').length;
@@ -121,6 +152,14 @@ export function PlayerManagementView({ session, players, onPlayersUpdated, onPla
 
   return (
     <div className="space-y-6">
+      {/* Alert Sent Success Banner */}
+      {alertSuccessToast && (
+        <div className="p-3.5 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 border border-emerald-500/40 rounded-2xl text-xs text-emerald-200 flex items-center gap-2 shadow-lg shadow-emerald-950/40 animate-in fade-in slide-in-from-top-2">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-bold">{alertSuccessToast}</span>
+        </div>
+      )}
+
       {/* Header Banner & Stats */}
       <div className="bg-gradient-to-r from-[#141C16] via-[#17241C] to-[#101712] border border-amber-500/20 rounded-3xl p-5 sm:p-7 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -391,6 +430,30 @@ export function PlayerManagementView({ session, players, onPlayersUpdated, onPla
                       </button>
                     </div>
                   )
+                )}
+
+                {/* FCM Push Notification Status */}
+                <div className="mb-2.5 flex items-center justify-between text-[10px] px-2.5 py-1.5 rounded-xl bg-[#09110D] border border-emerald-500/25 text-emerald-300">
+                  <span className="flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>إشعارات الهاتف (FCM):</span>
+                  </span>
+                  <span className="font-bold flex items-center gap-1 text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>متصل ونشط 📱</span>
+                  </span>
+                </div>
+
+                {/* Direct Personal Alert Button for Captain */}
+                {isCaptain && (
+                  <button
+                    onClick={() => handleOpenDirectAlert(player)}
+                    className="w-full mb-3 py-1.5 px-2.5 bg-gradient-to-r from-emerald-950/60 to-emerald-900/60 hover:from-emerald-900/80 hover:to-emerald-800/80 border border-emerald-500/40 rounded-xl text-[11px] text-emerald-300 font-bold flex items-center justify-center gap-1.5 transition-all shadow-sm group"
+                    title="إرسال إشعار فوري مباشر إلى هاتف هذا اللاعب فقط عبر Firebase Cloud Messaging"
+                  >
+                    <BellRing className="w-3.5 h-3.5 text-emerald-400 group-hover:animate-bounce" />
+                    <span>إرسال تنبيه شخصي لهاتف اللاعب (FCM Direct)</span>
+                  </button>
                 )}
 
                 {/* Notes from Captain */}
@@ -746,6 +809,142 @@ export function PlayerManagementView({ session, players, onPlayersUpdated, onPla
             }
           }}
         />
+      )}
+
+      {/* Direct Personal FCM Alert Modal */}
+      {directAlertPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#101713] border-2 border-emerald-500/50 rounded-3xl p-6 sm:p-7 max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl relative">
+            <button
+              onClick={() => setDirectAlertPlayer(null)}
+              className="absolute top-5 left-5 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              {directAlertPlayer.photoUrl ? (
+                <img
+                  src={directAlertPlayer.photoUrl}
+                  alt={directAlertPlayer.name}
+                  className="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-400 shrink-0"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-300 font-black text-lg">
+                  #{directAlertPlayer.jerseyNumber}
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-black text-white">{directAlertPlayer.name}</h3>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                    #{directAlertPlayer.jerseyNumber}
+                  </span>
+                </div>
+                <p className="text-xs text-emerald-300 font-semibold">{directAlertPlayer.position} • {directAlertPlayer.ageGroup}</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl mb-4 text-[11px] text-emerald-200 flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce" />
+              <span>
+                <strong>تنبيه فوري مباشر (FCM Push):</strong> سيصل هذا الإشعار كرسالة منبثقة مع اهتزاز وصوت رنين مباشرة إلى هاتف اللاعب <strong>{directAlertPlayer.name}</strong> فقط!
+              </span>
+            </div>
+
+            <form onSubmit={handleSendDirectFCMAlert} className="space-y-4 text-right">
+              <div>
+                <label className="block text-xs font-bold text-gray-300 mb-1">نوع التنبيه:</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'training', label: 'موعد تمرين خاص ⚽' },
+                    { id: 'sleep', label: 'تنبيه النوم والراحة 🛌' },
+                    { id: 'recovery', label: 'تغذية / فحص وزن 💧' },
+                    { id: 'urgent', label: 'تنبيه عاجل وانضباطي ⚡' },
+                  ].map((cat) => (
+                    <button
+                      type="button"
+                      key={cat.id}
+                      onClick={() => setDirectAlertCategory(cat.id as any)}
+                      className={`p-2.5 rounded-xl border text-xs font-bold transition-all text-center ${
+                        directAlertCategory === cat.id
+                          ? 'border-emerald-400 bg-emerald-500/25 text-white ring-2 ring-emerald-400/40'
+                          : 'border-white/10 bg-[#080B09] text-gray-300 hover:border-emerald-500/30'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 mb-1">عنوان التنبيه الظاهر على شاشة القفل *</label>
+                <input
+                  type="text"
+                  required
+                  value={directAlertTitle}
+                  onChange={(e) => setDirectAlertTitle(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-[#080B09] border border-emerald-500/30 rounded-xl text-gray-100 text-xs focus:outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-300 mb-1">نص التنبيه والتوجيه الخاص *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={directAlertMsg}
+                  onChange={(e) => setDirectAlertMsg(e.target.value)}
+                  placeholder="اكتب التوجيه الفردي لهذا اللاعب..."
+                  className="w-full px-3.5 py-2.5 bg-[#080B09] border border-emerald-500/30 rounded-xl text-gray-100 text-xs focus:outline-none focus:border-emerald-400 leading-relaxed"
+                />
+              </div>
+
+              {/* Quick Presets */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-400 mb-1.5">نماذج سريعة للتوجيه المباشر:</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'يرجى الحضور قبل الموعد بـ 15 دقيقة لإجراء إحماء منفرد',
+                    'موعد النوم الآن! احرص على شرب الماء والاستشفاء التام',
+                    'عليك زيادة الجهد البدني في التمرين القادم مع التركيز على السرعة',
+                    'تنبيه انضباطي: الالتزام الصارم بتعليمات الكابتن في الملعب',
+                  ].map((preset, idx) => (
+                    <button
+                      type="button"
+                      key={idx}
+                      onClick={() => setDirectAlertMsg(preset)}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-emerald-500/20 border border-white/10 rounded-lg text-[10px] text-gray-300 transition-colors text-right"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Submit */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setDirectAlertPlayer(null)}
+                  className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:bg-white/5"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-extrabold rounded-xl text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>إرسال التنبيه الفوري لهاتف اللاعب</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

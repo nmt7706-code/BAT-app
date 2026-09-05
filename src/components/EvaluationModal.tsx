@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Star, Flame, CheckCircle2, Shield, X, Sparkles, Award, Send } from 'lucide-react';
 import { PlayerRecord, DailyEvaluation, DailyEvaluationVerdict } from '../types';
 import { StorageService } from '../utils/storage';
+import { sendCaptainFCMBroadcast } from '../utils/fcm';
 
 interface EvaluationModalProps {
   player: PlayerRecord;
@@ -92,6 +93,16 @@ export function EvaluationModal({ player, isOpen, onClose, onSaved }: Evaluation
     };
 
     StorageService.savePlayer(updatedPlayer);
+
+    // إرسال إشعار فوري لهاتف اللاعب بتقييمه الفني وتوجيه الكابتن زيد
+    sendCaptainFCMBroadcast({
+      title: `⭐ تقييم فني جديد: ${selectedVerdict} (${ratingScore}/10)`,
+      body: `توجيه الكابتن زيد للاعب ${player.name}: "${feedback.trim() || 'أداء اليوم مسجل وموثق'}"`,
+      category: 'evaluation',
+      targetGroup: player.ageGroup,
+      targetPlayerId: player.id,
+    });
+
     onSaved(updatedPlayer, selectedVerdict);
   };
 

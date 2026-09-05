@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Shield, UserPlus, Lock, KeyRound, User, Phone, Trophy, ChevronLeft, AlertCircle, Sparkles, CheckCircle2, Camera, Upload, Image as ImageIcon, Trash2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Shield, UserPlus, Lock, KeyRound, User, Phone, Trophy, ChevronLeft, AlertCircle, Sparkles, CheckCircle2, Camera, Trash2, UserCheck, LogIn, Search, ArrowRight, Download, ArrowUpRight } from 'lucide-react';
 import { UserSession, PlayerRecord } from '../types';
 import { StorageService } from '../utils/storage';
 
@@ -9,12 +9,18 @@ interface LoginScreenProps {
 }
 
 export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
-  const [activeMode, setActiveMode] = useState<'selection' | 'captain' | 'player'>('selection');
+  const [activeMode, setActiveMode] = useState<'selection' | 'captain' | 'player' | 'player_login'>('selection');
 
   // Captain Login State
   const [captainPassword, setCaptainPassword] = useState('');
   const [captainError, setCaptainError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Existing Player Login State (لديك حساب بالفعل)
+  const [loginSearch, setLoginSearch] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [registeredPlayers, setRegisteredPlayers] = useState<PlayerRecord[]>([]);
+  const [lastPlayerId, setLastPlayerId] = useState<string | null>(null);
 
   // Player Registration State
   const [playerName, setPlayerName] = useState('');
@@ -25,6 +31,12 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
   const [playerPhoto, setPlayerPhoto] = useState<string | null>(null);
   const [playerError, setPlayerError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync registered players and last logged in player
+  useEffect(() => {
+    setRegisteredPlayers(StorageService.getPlayers());
+    setLastPlayerId(StorageService.getLastPlayerId());
+  }, [activeMode]);
 
   // Handle Photo Selection
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,6 +76,41 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
     }
   };
 
+  // Handle Login for an Existing Player (لديك حساب بالفعل)
+  const handleSelectExistingPlayer = (player: PlayerRecord) => {
+    const session: UserSession = {
+      id: player.id,
+      role: 'player',
+      name: player.name,
+      phone: player.phone,
+      photoUrl: player.photoUrl,
+      position: player.position,
+      ageGroup: player.ageGroup,
+      jerseyNumber: player.jerseyNumber,
+      loginTimestamp: Date.now(),
+    };
+    StorageService.setLastPlayerId(player.id);
+    StorageService.setSession(session);
+    onLogin(session);
+  };
+
+  const handleExistingPlayerSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    const query = loginSearch.trim();
+    if (!query) {
+      setLoginError('يرجى كتابة رقم الهاتف أو اسم اللاعب المسجل به');
+      return;
+    }
+
+    const found = StorageService.findPlayerByPhoneOrName(query);
+    if (found) {
+      handleSelectExistingPlayer(found);
+    } else {
+      setLoginError('لم يتم العثور على حساب لاعب مسجل بهذا الرقم أو الاسم! تأكد من صحة البيانات أو أنشئ حساباً جديداً.');
+    }
+  };
+
   // Handle Player Registration
   const handlePlayerRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,8 +143,9 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
       joinDate: new Date().toISOString().split('T')[0],
     };
 
-    // Save player into database
+    // Save player into database & track last id
     StorageService.savePlayer(newPlayer);
+    StorageService.setLastPlayerId(newPlayerId);
 
     // Create persistent session
     const session: UserSession = {
@@ -173,7 +221,7 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                 </p>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 {/* Option 1: Captain Portal */}
                 <button
                   id="btn-captain-login-select"
@@ -184,7 +232,7 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                   className="w-full group p-4 rounded-2xl bg-gradient-to-r from-[#17221B] to-[#121A15] hover:from-amber-950/40 hover:to-[#17221B] border border-amber-500/30 hover:border-amber-400/60 flex items-center justify-between transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/10 text-right"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-black font-black shadow-md shadow-amber-500/20 group-hover:scale-105 transition-transform shrink-0">
                       <Shield className="w-6 h-6" />
                     </div>
                     <div>
@@ -198,7 +246,32 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                   <ChevronLeft className="w-5 h-5 text-amber-400 group-hover:-translate-x-1 transition-transform" />
                 </button>
 
-                {/* Option 2: New Player Account */}
+                {/* Option 2: Existing Player Login (لديك حساب بالفعل) */}
+                <button
+                  id="btn-player-login-select"
+                  onClick={() => {
+                    setActiveMode('player_login');
+                    setLoginError('');
+                    setLoginSearch('');
+                  }}
+                  className="w-full group p-4 rounded-2xl bg-gradient-to-r from-[#14231B] via-[#0E1C15] to-[#14231B] hover:from-emerald-900/40 hover:to-[#14231B] border border-emerald-500/40 hover:border-emerald-400/70 flex items-center justify-between transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/20 text-right relative overflow-hidden"
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 flex items-center justify-center text-black font-black shadow-md shadow-emerald-500/30 group-hover:scale-105 transition-transform shrink-0">
+                      <UserCheck className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="font-bold text-emerald-300 text-sm flex items-center gap-1.5">
+                        <span>تسجيل دخول لاعب مسجل</span>
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40 font-bold animate-pulse">لديك حساب بالفعل؟</span>
+                      </div>
+                      <p className="text-xs text-gray-300 mt-0.5">استرجاع حسابك وجدولك التدريبي برقم الهاتف أو الاسم</p>
+                    </div>
+                  </div>
+                  <ChevronLeft className="w-5 h-5 text-emerald-400 group-hover:-translate-x-1 transition-transform" />
+                </button>
+
+                {/* Option 3: New Player Registration */}
                 <button
                   id="btn-player-register-select"
                   onClick={() => {
@@ -208,18 +281,18 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                   className="w-full group p-4 rounded-2xl bg-gradient-to-r from-[#0C1A14] to-[#11231B] hover:from-emerald-950/40 hover:to-[#0C1A14] border border-emerald-500/30 hover:border-emerald-400/60 flex items-center justify-between transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 text-right"
                 >
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-black shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center text-emerald-400 font-black shadow-md border border-emerald-500/30 group-hover:scale-105 transition-transform shrink-0">
                       <UserPlus className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="font-bold text-emerald-300 text-sm flex items-center gap-1.5">
+                      <div className="font-bold text-gray-200 text-sm flex items-center gap-1.5">
                         <span>إنشاء حساب لاعب جديد</span>
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">تسجيل فوري</span>
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">تسجيل لأول مرة</span>
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5">تسجيل لاعب جديد في جداول التمارين والتبليغات</p>
                     </div>
                   </div>
-                  <ChevronLeft className="w-5 h-5 text-emerald-400 group-hover:-translate-x-1 transition-transform" />
+                  <ChevronLeft className="w-5 h-5 text-gray-400 group-hover:-translate-x-1 transition-transform" />
                 </button>
               </div>
 
@@ -229,6 +302,22 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                 <span>
                   ميزة <strong>الذاكرة الدائمة (Persistent Login)</strong>: بمجرد الدخول لن يُطلب منك تسجيل الدخول مرة أخرى عند إغلاق التطبيق وفتحه، وستظل جلستك محفوظة تماماً كتطبيق فيسبوك.
                 </span>
+              </div>
+
+              {/* Download APK & Store Publishing Center Button */}
+              <div className="mt-4 pt-3 border-t border-white/5">
+                <button
+                  type="button"
+                  id="btn-login-open-apk-center"
+                  onClick={onOpenFlutterCode}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-yellow-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all flex items-center justify-between shadow-sm hover:scale-[1.01]"
+                >
+                  <div className="flex items-center gap-2">
+                    <Download className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>تنزيل التطبيق بصيغة APK والنشر على متجر Google Play و App Store</span>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-amber-400 shrink-0" />
+                </button>
               </div>
             </div>
           )}
@@ -323,6 +412,30 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                 </div>
                 <h2 className="text-lg font-bold text-gray-100">تسجيل حساب لاعب في الأكاديمية</h2>
                 <p className="text-xs text-gray-400 mt-0.5">ستُحفظ بياناتك وجلستك في الذاكرة الدائمة مباشرة</p>
+              </div>
+
+              {/* Already have account banner */}
+              <div className="p-3 bg-gradient-to-r from-amber-500/15 via-emerald-950/40 to-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-2 mb-4 text-right">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-300">لديك حساب مسجل بالفعل؟</p>
+                    <p className="text-[10px] text-gray-300">لا داعي لإنشاء حساب جديد، ادخل لحسابك مباشرة</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMode('player_login');
+                    setPlayerError('');
+                    setLoginError('');
+                    setLoginSearch('');
+                  }}
+                  className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 hover:scale-105"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>تسجيل الدخول</span>
+                </button>
               </div>
 
               {/* Privacy Notice for Player */}
@@ -517,7 +630,198 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                   <UserPlus className="w-4 h-4" />
                   <span>تأكيد التسجيل والدخول الدائم</span>
                 </button>
+
+                <div className="pt-3 text-center border-t border-white/5 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveMode('player_login');
+                      setPlayerError('');
+                      setLoginError('');
+                      setLoginSearch('');
+                    }}
+                    className="text-xs text-amber-300 hover:text-amber-200 font-bold transition-colors inline-flex items-center gap-1.5 hover:underline"
+                  >
+                    <UserCheck className="w-4 h-4 text-amber-400" />
+                    <span>لديك حساب بالفعل في الأكاديمية؟ اضغط هنا لتسجيل الدخول</span>
+                  </button>
+                </div>
               </form>
+            </div>
+          )}
+
+          {/* Mode 4: Existing Player Login (لديك حساب بالفعل) */}
+          {activeMode === 'player_login' && (
+            <div className="bg-[#101713]/95 backdrop-blur-md border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 animate-in fade-in duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <button
+                  onClick={() => setActiveMode('selection')}
+                  className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-semibold"
+                >
+                  <span>الرجوع للخيارات</span>
+                </button>
+                <span className="text-xs font-bold text-amber-300 bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1">
+                  <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                  <span>لديك حساب بالفعل</span>
+                </span>
+              </div>
+
+              <div className="text-center mb-5">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-emerald-500/20 to-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 mb-2">
+                  <LogIn className="w-6 h-6" />
+                </div>
+                <h2 className="text-lg font-bold text-gray-100">تسجيل دخول لاعب مسجل</h2>
+                <p className="text-xs text-gray-300 mt-0.5">استرجع حسابك وجدول تمارينك وتقييماتك في الذاكرة الدائمة</p>
+              </div>
+
+              {/* Quick search / login form by phone or name */}
+              <form onSubmit={handleExistingPlayerSubmit} className="space-y-3.5 text-right mb-6">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1.5">
+                    رقم الهاتف أو اسم اللاعب المسجل به *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={loginSearch}
+                      onChange={(e) => {
+                        setLoginSearch(e.target.value);
+                        setLoginError('');
+                      }}
+                      placeholder="مثال: 07701234567 أو مصطفى قاسم..."
+                      className="w-full px-4 py-3 pr-10 bg-[#080B09] border border-amber-500/40 focus:border-amber-400 rounded-xl text-amber-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-right"
+                      autoFocus
+                    />
+                    <Search className="w-4 h-4 text-amber-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                {loginError && (
+                  <div className="p-3 bg-red-950/60 border border-red-500/50 rounded-xl text-xs text-red-300 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p>{loginError}</p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveMode('player');
+                          setPlayerError('');
+                        }}
+                        className="text-amber-300 hover:text-amber-200 font-bold underline mt-1 block"
+                      >
+                        اضغط هنا لإنشاء حساب لاعب جديد
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  id="btn-submit-player-login"
+                  className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>تسجيل الدخول واسترجاع الحساب</span>
+                </button>
+              </form>
+
+              {/* Direct 1-Click Fast Profile Switcher */}
+              {registeredPlayers.length > 0 && (
+                <div className="pt-4 border-t border-white/10 text-right">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      <span>أو اختر حسابك المسجل مباشرة بنقرة واحدة:</span>
+                    </span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      {registeredPlayers.length} لاعب مسجل
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {registeredPlayers.map((player) => {
+                      const isLastAccount = player.id === lastPlayerId;
+                      return (
+                        <div
+                          key={player.id}
+                          onClick={() => handleSelectExistingPlayer(player)}
+                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group text-right ${
+                            isLastAccount
+                              ? 'bg-gradient-to-r from-amber-500/20 via-emerald-900/20 to-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/10'
+                              : 'bg-[#0A110D] hover:bg-[#121E17] border-white/10 hover:border-emerald-500/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-800 border border-amber-500/30 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                              {player.photoUrl ? (
+                                <img
+                                  src={player.photoUrl}
+                                  alt={player.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <span>#{player.jerseyNumber || '10'}</span>
+                              )}
+                              <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-amber-400 rounded-tl-md flex items-center justify-center text-[8px] text-black font-black">
+                                {player.jerseyNumber || '★'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-gray-100 group-hover:text-amber-300 transition-colors">
+                                  {player.name}
+                                </span>
+                                {isLastAccount && (
+                                  <span className="text-[9px] bg-amber-400 text-black font-black px-1.5 py-0.2 rounded-md">
+                                    آخر حساب مسجل 📱
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-gray-400 flex items-center gap-2 mt-0.5">
+                                <span className="text-emerald-400">{player.position}</span>
+                                <span>•</span>
+                                <span>{player.ageGroup}</span>
+                                {player.phone && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-gray-400 dir-ltr">{player.phone}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="px-3 py-1.5 bg-amber-500/15 group-hover:bg-amber-400 group-hover:text-black border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1"
+                          >
+                            <span>دخول</span>
+                            <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Toggle to Registration */}
+              <div className="pt-4 border-t border-white/5 text-center mt-4">
+                <p className="text-xs text-gray-400 mb-1">لاعب جديد ولم تسجل بعد في الأكاديمية؟</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveMode('player');
+                    setPlayerError('');
+                  }}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-colors inline-flex items-center gap-1 hover:underline"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>اضغط هنا لإنشاء حساب لاعب جديد لأول مرة</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

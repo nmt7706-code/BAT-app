@@ -1,10 +1,12 @@
-import { UserSession, Exercise, Announcement, PlayerRecord } from '../types';
+import { UserSession, Exercise, Announcement, PlayerRecord, PushNotificationRecord } from '../types';
 
 const STORAGE_KEYS = {
   SESSION: 'bat_academy_persistent_session',
   PLAYERS: 'bat_academy_players_db',
   EXERCISES: 'bat_academy_exercises_db',
   ANNOUNCEMENTS: 'bat_academy_announcements_db',
+  NOTIFICATIONS: 'bat_academy_fcm_notifications_db',
+  LAST_PLAYER_ID: 'bat_academy_last_player_id',
 };
 
 // Initial Seed Data for B.A.T Academy (بايبوخت)
@@ -241,6 +243,39 @@ export const StorageService = {
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
   },
 
+  getLastPlayerId(): string | null {
+    try {
+      return localStorage.getItem(STORAGE_KEYS.LAST_PLAYER_ID);
+    } catch {
+      return null;
+    }
+  },
+
+  setLastPlayerId(playerId: string): void {
+    try {
+      localStorage.setItem(STORAGE_KEYS.LAST_PLAYER_ID, playerId);
+    } catch {
+      // ignore
+    }
+  },
+
+  findPlayerByPhoneOrName(query: string): PlayerRecord | null {
+    const cleanQuery = query.trim().toLowerCase();
+    if (!cleanQuery) return null;
+    const cleanDigits = cleanQuery.replace(/[^0-9]/g, '');
+    const players = this.getPlayers();
+
+    return players.find((p) => {
+      const pCleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
+      if (cleanDigits.length >= 4 && pCleanPhone.length >= 4) {
+        if (pCleanPhone === cleanDigits || pCleanPhone.endsWith(cleanDigits) || cleanDigits.endsWith(pCleanPhone)) {
+          return true;
+        }
+      }
+      return p.name.trim().toLowerCase() === cleanQuery || p.name.trim().toLowerCase().includes(cleanQuery);
+    }) || null;
+  },
+
   // Exercises
   getExercises(): Exercise[] {
     try {
@@ -299,5 +334,28 @@ export const StorageService = {
   deleteAnnouncement(annId: string): void {
     const list = this.getAnnouncements().filter((a) => a.id !== annId);
     localStorage.setItem(STORAGE_KEYS.ANNOUNCEMENTS, JSON.stringify(list));
+  },
+
+  // FCM Notifications Inbox / Logs
+  getNotificationsHistory(): PushNotificationRecord[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+      if (!data) return [];
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  },
+
+  saveNotificationRecord(notification: PushNotificationRecord): void {
+    const list = this.getNotificationsHistory();
+    list.unshift(notification);
+    // Keep last 40 notifications
+    if (list.length > 40) list.length = 40;
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+  },
+
+  clearNotificationsHistory(): void {
+    localStorage.removeItem(STORAGE_KEYS.NOTIFICATIONS);
   },
 };

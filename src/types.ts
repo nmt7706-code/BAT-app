@@ -10,6 +10,19 @@ export interface UserSession {
   ageGroup?: string;
   jerseyNumber?: number;
   loginTimestamp: number;
+  fcmToken?: string;
+  notificationsEnabled?: boolean;
+}
+
+export interface PushNotificationRecord {
+  id: string;
+  title: string;
+  body: string;
+  category: 'training' | 'sleep' | 'evaluation' | 'urgent' | 'general' | 'match' | 'recovery';
+  timestamp: string;
+  sender: string;
+  targetGroup?: string;
+  targetPlayerId?: string;
 }
 
 export type ExerciseCategory = 'physical' | 'tactical' | 'skills' | 'goalkeeping' | 'recovery';

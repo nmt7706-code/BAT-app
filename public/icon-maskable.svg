@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg-mask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#080D0A" />
+      <stop offset="50%" stop-color="#101A14" />
+      <stop offset="100%" stop-color="#050806" />
+    </linearGradient>
+    <linearGradient id="gold-mask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <linearGradient id="emerald-mask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <!-- Full-bleed background for maskable icon -->
+  <rect width="512" height="512" fill="url(#bg-mask)" />
+
+  <!-- Content scaled inside 80% safe zone (center 512 with safe padding) -->
+  <g transform="translate(51, 51) scale(0.8)">
+    <!-- Golden Shield -->
+    <path d="M256 60 L390 115 C390 260 256 395 256 395 C256 395 122 260 122 115 Z" fill="#0C1611" stroke="url(#gold-mask)" stroke-width="12" stroke-linejoin="round" />
+    
+    <!-- Inner Shield Accent -->
+    <path d="M256 85 L365 130 C365 245 256 360 256 360 C256 360 147 245 147 130 Z" fill="#080F0B" stroke="url(#emerald-mask)" stroke-width="5" stroke-linejoin="round" />
+
+    <!-- Soccer Ball Accent -->
+    <circle cx="256" cy="210" r="54" fill="#14211A" stroke="url(#gold-mask)" stroke-width="5" />
+    <polygon points="256,180 278,196 270,221 242,221 234,196" fill="url(#gold-mask)" opacity="0.9" />
+
+    <!-- Stars -->
+    <polygon points="256,92 260,104 273,104 262,112 266,124 256,116 246,124 250,112 239,104 252,104" fill="url(#gold-mask)" />
+    <polygon points="210,108 213,117 223,117 215,123 218,132 210,126 202,132 205,123 197,117 207,117" fill="url(#gold-mask)" opacity="0.75" />
+    <polygon points="302,108 305,117 315,117 307,123 310,132 302,126 294,132 297,123 289,117 299,117" fill="url(#gold-mask)" opacity="0.75" />
+
+    <!-- Typography B.A.T -->
+    <text x="256" y="315" font-family="'Cairo', system-ui, sans-serif" font-size="52" font-weight="900" text-anchor="middle" fill="url(#gold-mask)" letter-spacing="4">B.A.T</text>
+    
+    <!-- Ribbon / Banner Subtext -->
+    <rect x="136" y="420" width="240" height="44" rx="22" fill="#121C16" stroke="url(#gold-mask)" stroke-width="3" />
+    <text x="256" y="448" font-family="'Cairo', system-ui, sans-serif" font-size="19" font-weight="800" text-anchor="middle" fill="#FFFFFF">أكاديمية بايبوخت</text>
+  </g>
+</svg>

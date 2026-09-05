@@ -2,6 +2,7 @@ import { useState, FormEvent } from 'react';
 import { Bell, Pin, Calendar, AlertTriangle, MessageSquare, Plus, Trash2, CheckCircle2, Megaphone, Moon, Dumbbell, Send, Sparkles } from 'lucide-react';
 import { Announcement, AnnouncementType, UserSession } from '../types';
 import { StorageService } from '../utils/storage';
+import { sendCaptainFCMBroadcast } from '../utils/fcm';
 import { QuickCaptainBroadcast } from './QuickCaptainBroadcast';
 
 interface AnnouncementsViewProps {
@@ -48,8 +49,16 @@ export function AnnouncementsView({ session, announcements, onAnnouncementsUpdat
 
     StorageService.saveAnnouncement(announcement);
     onAnnouncementsUpdated();
-    if (onPushNotificationSent && sendPushNotification) {
-      onPushNotificationSent(announcement);
+    if (sendPushNotification) {
+      sendCaptainFCMBroadcast({
+        title: announcement.title,
+        body: announcement.content,
+        category: announcement.type === 'sleep' ? 'sleep' : announcement.type === 'training' ? 'training' : announcement.type === 'match' ? 'match' : 'general',
+        targetGroup: announcement.targetGroup,
+      });
+      if (onPushNotificationSent) {
+        onPushNotificationSent(announcement);
+      }
     }
     setShowAddModal(false);
 

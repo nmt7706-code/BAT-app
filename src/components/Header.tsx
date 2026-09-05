@@ -1,6 +1,9 @@
-import { useState } from 'react';
-import { Shield, User, LogOut, RotateCcw, Trash2, Code, Sparkles, CheckCircle2, ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Shield, User, LogOut, RotateCcw, Trash2, Code, Sparkles, CheckCircle2, ChevronDown, Bell, BellRing, Smartphone, Download } from 'lucide-react';
 import { UserSession } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
+import { requestNotificationPermission, isPushSupported } from '../utils/fcm';
+import { StorageService } from '../utils/storage';
 
 interface HeaderProps {
   session: UserSession;
@@ -20,6 +23,23 @@ export function Header({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showConfirmLogout, setShowConfirmLogout] = useState(false);
   const [showConfirmReset, setShowConfirmReset] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+  const [isActivatingPush, setIsActivatingPush] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleToggleNotifications = async () => {
+    setIsActivatingPush(true);
+    await requestNotificationPermission();
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+    setIsActivatingPush(false);
+  };
 
   const isCaptain = session.role === 'captain';
 
@@ -60,14 +80,44 @@ export function Header({
 
           {/* Right Action Tools & User Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* View Flutter Code Modal */}
+            {/* PWA Install Button */}
+            <PWAInstallButton className="hidden sm:inline-flex" />
+
+            {/* FCM Push Notification Permission / Toggle */}
             <button
-              onClick={onOpenFlutterCode}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500/15 to-yellow-500/10 hover:from-amber-500/25 hover:to-yellow-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all shadow-sm"
-              title="عرض كود فلاتر المصدري"
+              onClick={handleToggleNotifications}
+              disabled={isActivatingPush}
+              className={`flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${
+                notificationPermission === 'granted'
+                  ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 hover:bg-emerald-900/50'
+                  : 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-amber-500/50 text-amber-300 animate-pulse hover:bg-amber-500/30'
+              }`}
+              title={
+                notificationPermission === 'granted'
+                  ? 'إشعارات الهاتف (Firebase Cloud Messaging) نشطة ومفعلة'
+                  : 'اضغط لتفعيل استلام إشعارات الأكاديمية على هاتفك فوراً (FCM)'
+              }
             >
-              <Code className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">كود Flutter</span>
+              {notificationPermission === 'granted' ? (
+                <BellRing className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Bell className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className="hidden md:inline">
+                {notificationPermission === 'granted' ? 'إشعارات FCM نشطة' : 'تفعيل إشعارات الهاتف'}
+              </span>
+            </button>
+
+            {/* View APK & Store Export Modal */}
+            <button
+              id="btn-open-apk-export"
+              onClick={onOpenFlutterCode}
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/50 text-amber-300 text-xs font-bold transition-all shadow-md shadow-amber-500/10 hover:scale-105"
+              title="تصدير وتحميل التطبيق بصيغة APK ورفعه لمتجر Google Play و Apple App Store"
+            >
+              <Download className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline">تحميل APK & المتجر</span>
+              <span className="sm:hidden">APK 📱</span>
             </button>
 
             {/* Simulate App Restart Button (Verifies the user intent!) */}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Dumbbell, Bell, Users, Shield, Smartphone, Monitor, CheckCircle, Sparkles, Trophy } from 'lucide-react';
+import { Dumbbell, Bell, Users, Shield, Smartphone, Monitor, CheckCircle, Sparkles, Trophy, BellRing, X } from 'lucide-react';
 import { UserSession, Exercise, Announcement, PlayerRecord } from './types';
 import { StorageService } from './utils/storage';
+import { initFCM, subscribeToFCMNotifications, requestNotificationPermission } from './utils/fcm';
 import { LoginScreen } from './components/LoginScreen';
 import { Header } from './components/Header';
 import { WorkoutsView } from './components/WorkoutsView';
@@ -10,6 +11,7 @@ import { PlayerManagementView } from './components/PlayerManagementView';
 import { FlutterCodeModal } from './components/FlutterCodeModal';
 import { PushNotificationToast, SimulatedPushNotification } from './components/PushNotificationToast';
 import { PlayerEvaluationCard } from './components/PlayerEvaluationCard';
+import { OfflineIndicator } from './components/OfflineIndicator';
 
 export default function App() {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -24,6 +26,7 @@ export default function App() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [players, setPlayers] = useState<PlayerRecord[]>([]);
+  const [showNotifPermissionBanner, setShowNotifPermissionBanner] = useState(false);
 
   // Initial Load - Persistent Login (mirroring Flutter's shared_preferences)
   useEffect(() => {
@@ -36,6 +39,33 @@ export default function App() {
     setAnnouncements(StorageService.getAnnouncements());
     setPlayers(StorageService.getPlayers());
     setIsInitializing(false);
+
+    // Initialize Firebase Cloud Messaging & Service Worker
+    initFCM();
+
+    // Check if notification permission is needed
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      setShowNotifPermissionBanner(true);
+    }
+
+    // Subscribe to real-time FCM & BroadcastChannel pushes
+    const unsubscribe = subscribeToFCMNotifications((payload) => {
+      setCurrentPush({
+        id: payload.id || 'push-' + Date.now(),
+        title: payload.title,
+        body: payload.body,
+        type: (payload.category as any) || 'general',
+        author: 'الكابتن زيد محمد خرشيد',
+        time: 'الآن',
+      });
+      // Refresh announcements & players data
+      setAnnouncements(StorageService.getAnnouncements());
+      setPlayers(StorageService.getPlayers());
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const refreshData = () => {
@@ -141,6 +171,39 @@ export default function App() {
   // Main Logged-In View
   return (
     <div className="min-h-screen bg-[#080B09] text-gray-100 flex flex-col selection:bg-amber-500/30 selection:text-amber-200">
+      {/* Offline PWA Status Banner */}
+      <OfflineIndicator />
+
+      {/* Notification Permission Request Banner */}
+      {showNotifPermissionBanner && (
+        <div className="bg-gradient-to-r from-[#17231B] via-[#1F3325] to-[#17231B] border-b border-amber-500/40 px-4 py-2.5 text-xs text-amber-200 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg z-40 animate-in slide-in-from-top">
+          <div className="flex items-center gap-2 text-center sm:text-right">
+            <BellRing className="w-4 h-4 text-amber-400 shrink-0 animate-bounce" />
+            <span>
+              <strong>تفعيل إشعارات هاتف اللاعب (Firebase Cloud Messaging):</strong> اسمح بالإشعارات لاستلام تنبيهات التمارين، مواعيد النوم، والتقييمات اليومية مباشرة على هاتفك!
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={async () => {
+                await requestNotificationPermission();
+                setShowNotifPermissionBanner(false);
+              }}
+              className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold rounded-xl text-xs shadow-sm transition-all"
+            >
+              تفعيل الإشعارات الآن
+            </button>
+            <button
+              onClick={() => setShowNotifPermissionBanner(false)}
+              className="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"
+              title="تخطي الآن"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Simulation Banner Notification */}
       {restartBanner && (
         <div className="bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950 text-emerald-200 px-4 py-2.5 text-xs text-center border-b border-emerald-500/30 flex items-center justify-center gap-2 sticky top-0 z-50 shadow-md">
