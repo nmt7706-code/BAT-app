@@ -1,0 +1,6 @@
+{
+  "name": "أكاديمية بايبوخت (B.A.T)",
+  "description": "تطبيق أكاديمية بايبوخت (B.A.T) الرياضية بإدارة الكابتن زيد محمد خرشيد - إدارة اللاعبين والتمارين والتبليغات مع تسجيل الدخول الدائم",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
