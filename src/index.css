@@ -1,1 +1,52 @@
 @import "tailwindcss";
+
+/* B.A.T Academy Theme Management */
+html.light body {
+  background-color: #F3F6F4 !important;
+  color: #0F172A !important;
+}
+
+html.light .bg-\[\#080B09\] {
+  background-color: #F3F6F4 !important;
+}
+
+html.light .bg-\[\#0E1510\],
+html.light .bg-\[\#0D1410\],
+html.light .bg-\[\#121A14\],
+html.light .bg-\[\#141C15\] {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+html.light .bg-\[\#080C0A\],
+html.light .bg-\[\#050806\],
+html.light .bg-\[\#101713\] {
+  background-color: #F8FAF8 !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+}
+
+html.light .text-white {
+  color: #0F172A !important;
+}
+
+html.light .text-gray-100 {
+  color: #0F172A !important;
+}
+
+html.light .text-gray-200 {
+  color: #1E293B !important;
+}
+
+html.light .text-gray-300 {
+  color: #334155 !important;
+}
+
+html.light .text-gray-400 {
+  color: #64748B !important;
+}
+
+html.light .border-white\/5,
+html.light .border-white\/10 {
+  border-color: #E2E8F0 !important;
+}

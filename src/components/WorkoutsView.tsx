@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { Dumbbell, Plus, Clock, Target, Flame, CheckCircle, Play, Pause, RotateCcw, Trash2, ChevronDown, Award } from 'lucide-react';
+import { Dumbbell, Plus, Clock, Target, Flame, CheckCircle, Play, Pause, RotateCcw, Trash2, Edit3, ChevronDown, Award } from 'lucide-react';
 import { Exercise, ExerciseCategory, ExerciseIntensity, UserSession } from '../types';
 import { StorageService } from '../utils/storage';
 
@@ -14,6 +14,7 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [activeTimerExercise, setActiveTimerExercise] = useState<Exercise | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -41,6 +42,30 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
     { id: 'goalkeeping', label: 'حراسة المرمى' },
   ];
 
+  const openAddModal = () => {
+    setEditingExercise(null);
+    setNewTitle('');
+    setNewCategory('tactical');
+    setNewIntensity('متوسط');
+    setNewDuration(30);
+    setNewFocus('');
+    setNewDescription('');
+    setNewInstructions('');
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (ex: Exercise) => {
+    setEditingExercise(ex);
+    setNewTitle(ex.title);
+    setNewCategory(ex.category);
+    setNewIntensity(ex.intensity);
+    setNewDuration(ex.durationMinutes);
+    setNewFocus(ex.targetFocus);
+    setNewDescription(ex.description);
+    setNewInstructions((ex.instructions || []).join('\n'));
+    setShowAddModal(true);
+  };
+
   const handleAddExercise = (e: FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -51,7 +76,7 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
       .filter((item) => item.length > 0);
 
     const exercise: Exercise = {
-      id: 'ex-' + Date.now(),
+      id: editingExercise ? editingExercise.id : 'ex-' + Date.now(),
       title: newTitle.trim(),
       category: newCategory,
       intensity: newIntensity,
@@ -59,8 +84,8 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
       targetFocus: newFocus.trim() || 'رفع الجاهزية الفنية',
       description: newDescription.trim() || 'تمرين معتمد من الكابتن زيد للأكاديمية.',
       instructions: instructionsList.length > 0 ? instructionsList : ['اتباع تعليمات الكابتن في الملعب'],
-      addedBy: session.name,
-      date: new Date().toISOString().split('T')[0],
+      addedBy: editingExercise ? editingExercise.addedBy : session.name,
+      date: editingExercise ? editingExercise.date : new Date().toISOString().split('T')[0],
     };
 
     StorageService.saveExercise(exercise);
@@ -72,6 +97,7 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
     setNewFocus('');
     setNewDescription('');
     setNewInstructions('');
+    setEditingExercise(null);
   };
 
   const handleDeleteExercise = (id: string) => {
@@ -86,22 +112,32 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
       {/* Top Banner with Stats & Captain Action */}
       <div className="bg-gradient-to-r from-[#111A14] via-[#15231B] to-[#0D1510] border border-amber-500/20 rounded-3xl p-5 sm:p-7 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                <Dumbbell className="w-5 h-5" />
-              </span>
-              <h2 className="text-xl sm:text-2xl font-black text-white">جدول التمارين والوحدات التدريبية</h2>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#1B271F] to-[#0E1611] border-2 border-amber-400/50 p-0.5 shrink-0 shadow-lg shadow-amber-500/10 overflow-hidden">
+              <img
+                src="/logo.png"
+                alt="شعار أكاديمية بايبوخت"
+                className="w-full h-full object-cover rounded-xl"
+                referrerPolicy="no-referrer"
+              />
             </div>
-            <p className="text-xs sm:text-sm text-gray-300">
-              المناهج التدريبية والتكتيكية المقررة من الكابتن <span className="text-amber-300 font-bold">زيد محمد خرشيد</span> لتطوير مهارات لاعبي بايبوخت (B.A.T)
-            </p>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400">
+                  <Dumbbell className="w-4 h-4" />
+                </span>
+                <h2 className="text-xl sm:text-2xl font-black text-white">جدول التمارين والوحدات التدريبية</h2>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-300">
+                المناهج التدريبية والتكتيكية المقررة من الكابتن <span className="text-amber-300 font-bold">زيد محمد خرشيد</span> لتطوير مهارات لاعبي بايبوخت (B.A.T)
+              </p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
             {isCaptain && (
               <button
-                onClick={() => setShowAddModal(true)}
+                onClick={openAddModal}
                 className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold rounded-2xl shadow-lg shadow-amber-500/20 text-xs flex items-center gap-2 transition-all"
               >
                 <Plus className="w-4 h-4" />
@@ -160,13 +196,22 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
                   </div>
 
                   {isCaptain && (
-                    <button
-                      onClick={() => handleDeleteExercise(exercise.id)}
-                      className="text-gray-500 hover:text-red-400 p-1 transition-colors"
-                      title="حذف التمرين"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openEditModal(exercise)}
+                        className="text-gray-400 hover:text-amber-300 p-1 transition-colors"
+                        title="تعديل بيانات التمرين"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteExercise(exercise.id)}
+                        className="text-gray-500 hover:text-red-400 p-1 transition-colors"
+                        title="حذف التمرين"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -278,8 +323,16 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <div className="bg-[#101713] border border-amber-500/30 rounded-3xl p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
-              <h3 className="text-lg font-bold text-amber-300">إضافة تمرين تدريبي جديد</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white">
+              <h3 className="text-lg font-bold text-amber-300">
+                {editingExercise ? 'تعديل التمرين التدريبي' : 'إضافة تمرين تدريبي جديد'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingExercise(null);
+                }}
+                className="text-gray-400 hover:text-white"
+              >
                 ✕
               </button>
             </div>
@@ -380,7 +433,10 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingExercise(null);
+                  }}
                   className="px-4 py-2 rounded-xl text-xs text-gray-400 hover:bg-white/5"
                 >
                   إلغاء
@@ -389,7 +445,7 @@ export function WorkoutsView({ session, exercises, onExercisesUpdated }: Workout
                   type="submit"
                   className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-bold rounded-xl text-xs shadow-md"
                 >
-                  حفظ التمرين ونشره
+                  {editingExercise ? 'حفظ التعديلات' : 'حفظ التمرين ونشره'}
                 </button>
               </div>
             </form>

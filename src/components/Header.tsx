@@ -1,16 +1,16 @@
 import { useState, useEffect } from 'react';
-import { Shield, User, LogOut, RotateCcw, Trash2, Code, Sparkles, CheckCircle2, ChevronDown, Bell, BellRing, Smartphone, Download } from 'lucide-react';
+import { Shield, User, LogOut, RotateCcw, Trash2, Sparkles, CheckCircle2, ChevronDown, Bell, BellRing, Settings } from 'lucide-react';
 import { UserSession } from '../types';
-import { PWAInstallButton } from './PWAInstallButton';
-import { requestNotificationPermission, isPushSupported } from '../utils/fcm';
-import { StorageService } from '../utils/storage';
+import { requestNotificationPermission } from '../utils/fcm';
 
 interface HeaderProps {
   session: UserSession;
   onLogout: () => void;
   onSimulateRestart: () => void;
   onReinstallApp: () => void;
-  onOpenFlutterCode: () => void;
+  onOpenSettings?: () => void;
+  onOpenSocialLinks?: () => void;
+  onOpenFlutterCode?: () => void;
 }
 
 export function Header({
@@ -18,6 +18,8 @@ export function Header({
   onLogout,
   onSimulateRestart,
   onReinstallApp,
+  onOpenSettings,
+  onOpenSocialLinks,
   onOpenFlutterCode,
 }: HeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -47,12 +49,15 @@ export function Header({
     <header className="sticky top-0 z-30 bg-[#080C0A]/95 backdrop-blur-md border-b border-amber-500/20 shadow-lg shadow-black/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
-          {/* Academy Brand Logo */}
+          {/* Academy Brand Logo with Official Crest */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-[#1B271F] to-[#0E1611] border border-amber-500/40 p-1 flex items-center justify-center shadow-md shadow-amber-500/10">
-              <div className="w-full h-full rounded-xl bg-gradient-to-br from-amber-500/20 to-emerald-800/30 flex items-center justify-center font-black text-amber-300 text-xs sm:text-sm tracking-wider">
-                B.A.T
-              </div>
+            <div className="relative w-11 h-11 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#1B271F] to-[#0E1611] border-2 border-amber-400/50 p-0.5 flex items-center justify-center shadow-lg shadow-amber-500/10 overflow-hidden shrink-0 group">
+              <img
+                src="/logo.png"
+                alt="شعار أكاديمية بايبوخت (B.A.T)"
+                className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-300"
+                referrerPolicy="no-referrer"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -78,10 +83,18 @@ export function Header({
             </span>
           </div>
 
-          {/* Right Action Tools & User Profile */}
+          {/* Left Action Tools & User Profile & Settings */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* PWA Install Button */}
-            <PWAInstallButton className="hidden sm:inline-flex" />
+            {/* Dedicated Settings Button at top-left as requested */}
+            <button
+              id="top-header-settings-btn"
+              onClick={onOpenSettings}
+              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all border shadow-sm bg-gradient-to-r from-amber-500/20 to-yellow-500/15 border-amber-500/50 text-amber-300 hover:bg-amber-500/30 hover:border-amber-400 active:scale-95"
+              title="الإعدادات وحسابات التواصل"
+            >
+              <Settings className="w-4 h-4 text-amber-400 animate-spin-slow" />
+              <span className="font-extrabold">الإعدادات</span>
+            </button>
 
             {/* FCM Push Notification Permission / Toggle */}
             <button
@@ -106,28 +119,6 @@ export function Header({
               <span className="hidden md:inline">
                 {notificationPermission === 'granted' ? 'إشعارات FCM نشطة' : 'تفعيل إشعارات الهاتف'}
               </span>
-            </button>
-
-            {/* View APK & Store Export Modal */}
-            <button
-              id="btn-open-apk-export"
-              onClick={onOpenFlutterCode}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 border border-amber-500/50 text-amber-300 text-xs font-bold transition-all shadow-md shadow-amber-500/10 hover:scale-105"
-              title="تصدير وتحميل التطبيق بصيغة APK ورفعه لمتجر Google Play و Apple App Store"
-            >
-              <Download className="w-4 h-4 text-amber-400 shrink-0" />
-              <span className="hidden sm:inline">تحميل APK & المتجر</span>
-              <span className="sm:hidden">APK 📱</span>
-            </button>
-
-            {/* Simulate App Restart Button (Verifies the user intent!) */}
-            <button
-              onClick={onSimulateRestart}
-              className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition-all"
-              title="محاكاة إغلاق التطبيق وفتحه للتأكد من عدم طلب تسجيل الدخول مجدداً"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden md:inline">محاكاة إعادة فتح التطبيق</span>
             </button>
 
             {/* Profile Dropdown */}
@@ -186,6 +177,25 @@ export function Header({
                   </div>
 
                   <div className="space-y-1">
+                    {/* Settings & Accounts Option */}
+                    <button
+                      id="btn-menu-settings"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        if (onOpenSettings) onOpenSettings();
+                        else if (onOpenSocialLinks) onOpenSocialLinks();
+                      }}
+                      className="w-full text-right px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/10 rounded-xl flex items-center justify-between transition-all"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4 text-amber-400" />
+                        <span>الإعدادات وروابط الحسابات</span>
+                      </div>
+                      <span className="text-[10px] text-amber-400 bg-amber-500/20 px-1.5 py-0.5 rounded">
+                        واتساب • تلكرام
+                      </span>
+                    </button>
+
                     {/* Simulate App Restart */}
                     <button
                       onClick={() => {
@@ -201,17 +211,19 @@ export function Header({
                       <span className="text-[10px] text-gray-500">بدون طلب تسجيل</span>
                     </button>
 
-                    {/* View Flutter Code */}
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        onOpenFlutterCode();
-                      }}
-                      className="w-full text-right px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/10 rounded-xl flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4 text-amber-400" />
-                      <span>عرض كود فلاتر المصدري</span>
-                    </button>
+                    {/* View Flutter Code (if provided) */}
+                    {onOpenFlutterCode && (
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          onOpenFlutterCode();
+                        }}
+                        className="w-full text-right px-3 py-2 text-xs font-medium text-amber-300 hover:bg-amber-500/10 rounded-xl flex items-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <span>عرض كود فلاتر المصدري</span>
+                      </button>
+                    )}
 
                     {/* Clear Session / Logout */}
                     <button

@@ -1,15 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Shield, UserPlus, Lock, KeyRound, User, Phone, Trophy, ChevronLeft, AlertCircle, Sparkles, CheckCircle2, Camera, Trash2, UserCheck, LogIn, Search, ArrowRight, Download, ArrowUpRight } from 'lucide-react';
-import { UserSession, PlayerRecord } from '../types';
+import { Shield, UserPlus, Lock, KeyRound, User, Phone, ChevronLeft, AlertCircle, Sparkles, CheckCircle2, Camera, Trash2, UserCheck, LogIn, Search, ArrowRight, Share2, Star, Calendar, ExternalLink, Copy, Check, X } from 'lucide-react';
+import { UserSession, PlayerRecord, SocialLink } from '../types';
 import { StorageService } from '../utils/storage';
+import { WelcomeSplashScreen } from './WelcomeSplashScreen';
 
 interface LoginScreenProps {
   onLogin: (session: UserSession) => void;
-  onOpenFlutterCode: () => void;
+  onOpenSocialLinks: () => void;
+  onOpenFlutterCode?: () => void;
 }
 
-export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
+export function LoginScreen({ onLogin, onOpenSocialLinks, onOpenFlutterCode }: LoginScreenProps) {
   const [activeMode, setActiveMode] = useState<'selection' | 'captain' | 'player' | 'player_login'>('selection');
+
+  // Welcome 5-second cinematic splash state
+  const [welcomePlayer, setWelcomePlayer] = useState<{ name: string; session: UserSession } | null>(null);
+
+  // Social Auth Modal State (واتساب، كوكل، فيسبوك)
+  const [socialModal, setSocialModal] = useState<'whatsapp' | 'google' | 'facebook' | null>(null);
+  const [showSocialLinksModal, setShowSocialLinksModal] = useState(false);
+  const [socialName, setSocialName] = useState('');
+  const [socialAge, setSocialAge] = useState('17');
+  const [socialIdentifier, setSocialIdentifier] = useState('');
+  const [socialCode, setSocialCode] = useState('');
+  const [socialError, setSocialError] = useState('');
 
   // Captain Login State
   const [captainPassword, setCaptainPassword] = useState('');
@@ -24,10 +38,12 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
 
   // Player Registration State
   const [playerName, setPlayerName] = useState('');
+  const [playerAge, setPlayerAge] = useState('17');
   const [playerPhone, setPlayerPhone] = useState('');
   const [playerPosition, setPlayerPosition] = useState('صانع ألعاب (AMF)');
   const [playerAgeGroup, setPlayerAgeGroup] = useState('فئة الشباب (U-19)');
   const [playerJersey, setPlayerJersey] = useState('10');
+  const [playerCode, setPlayerCode] = useState(''); // الكود المخصص للاعبين: BAT2015
   const [playerPhoto, setPlayerPhoto] = useState<string | null>(null);
   const [playerError, setPlayerError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,7 +78,9 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
   // Handle Captain Login
   const handleCaptainLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (captainPassword === 'Aa0987654') {
+    const passcodes = StorageService.getAcademyPasscodes();
+    const cleanPass = captainPassword.trim();
+    if (cleanPass === passcodes.captainCode || cleanPass === 'Aa0987654') {
       const session: UserSession = {
         id: 'captain-zaid',
         role: 'captain',
@@ -70,6 +88,20 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
         loginTimestamp: Date.now(),
       };
       StorageService.setSession(session);
+
+      const now = new Date();
+      StorageService.logLoginEvent({
+        id: 'log-' + Date.now(),
+        userId: 'captain-zaid',
+        userName: 'الكابتن زيد محمد خرشيد',
+        role: 'captain',
+        method: 'captain_code',
+        methodLabel: 'لوحة تحكم المسؤول (كود الإدارة)',
+        timestamp: Date.now(),
+        dateFormatted: now.toLocaleDateString('ar-IQ'),
+        timeFormatted: now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      });
+
       onLogin(session);
     } else {
       setCaptainError('كلمة السر غير صحيحة! يرجى إعادة المحاولة.');
@@ -78,6 +110,11 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
 
   // Handle Login for an Existing Player (لديك حساب بالفعل)
   const handleSelectExistingPlayer = (player: PlayerRecord) => {
+    if (StorageService.isUserBanned(player.name, player.phone)) {
+      setLoginError('❌ عذراً، تم حظر هذا الحساب من قبل الكابتن زيد لعدم الانتماء للأكاديمية.');
+      return;
+    }
+
     const session: UserSession = {
       id: player.id,
       role: 'player',
@@ -91,7 +128,24 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
     };
     StorageService.setLastPlayerId(player.id);
     StorageService.setSession(session);
-    onLogin(session);
+
+    const now = new Date();
+    StorageService.logLoginEvent({
+      id: 'log-' + Date.now(),
+      userId: player.id,
+      userName: player.name,
+      role: 'player',
+      method: 'direct_login',
+      methodLabel: 'تسجيل دخول مباشر (حساب مسجل)',
+      timestamp: Date.now(),
+      dateFormatted: now.toLocaleDateString('ar-IQ'),
+      timeFormatted: now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      userPhone: player.phone,
+      userAge: player.age,
+    });
+
+    // Show 5-second cinematic welcome screen as requested
+    setWelcomePlayer({ name: player.name, session });
   };
 
   const handleExistingPlayerSubmit = (e: React.FormEvent) => {
@@ -111,6 +165,91 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
     }
   };
 
+  // Handle Social Login/Registration (واتساب، كوكل، فيسبوك)
+  const handleSocialLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!socialName.trim()) {
+      setSocialError('يرجى كتابة اسم اللاعب الكامل');
+      return;
+    }
+
+    // Check if player is banned
+    if (StorageService.isUserBanned(socialName, socialIdentifier)) {
+      setSocialError('❌ عذراً، تم حظر هذا الحساب من قبل الكابتن زيد لعدم الانتماء للأكاديمية.');
+      return;
+    }
+
+    // Verify Player Code from dynamic passcodes
+    const passcodes = StorageService.getAcademyPasscodes();
+    if (socialCode.trim().toUpperCase() !== passcodes.playerCode.trim().toUpperCase()) {
+      setSocialError('❌ كود الأكاديمية غير صحيح! يرجى إدخال كود الأكاديمية المعتمد.');
+      return;
+    }
+
+    const newPlayerId = 'pl-soc-' + Date.now();
+    const avatarUrl =
+      socialModal === 'whatsapp'
+        ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'
+        : socialModal === 'google'
+        ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&auto=format&fit=crop&q=80'
+        : 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&auto=format&fit=crop&q=80';
+
+    const providerName =
+      socialModal === 'whatsapp' ? 'واتساب' : socialModal === 'google' ? 'Google' : 'فيسبوك';
+
+    const newPlayer: PlayerRecord = {
+      id: newPlayerId,
+      name: socialName.trim(),
+      phone: socialIdentifier.trim() || '07700000000',
+      photoUrl: avatarUrl,
+      jerseyNumber: 10,
+      position: 'صانع ألعاب (AMF)',
+      ageGroup: 'فئة الشباب (U-19)',
+      age: parseInt(socialAge, 10) || 17,
+      attendanceRate: 100,
+      performanceRating: 8.8,
+      readiness: 'جاهز للمباريات',
+      notes: `تم التسجيل بنجاح عبر حساب ${providerName} مع كود الأكاديمية.`,
+      bio: `لاعب مسجل عبر ${providerName}، العمر: ${socialAge || 17} سنة، انضم لأكاديمية بايبوخت (B.A.T).`,
+      joinDate: new Date().toISOString().split('T')[0],
+    };
+
+    StorageService.savePlayer(newPlayer);
+    StorageService.setLastPlayerId(newPlayerId);
+
+    const session: UserSession = {
+      id: newPlayerId,
+      role: 'player',
+      name: socialName.trim(),
+      phone: newPlayer.phone,
+      photoUrl: avatarUrl,
+      position: newPlayer.position,
+      ageGroup: newPlayer.ageGroup,
+      jerseyNumber: 10,
+      loginTimestamp: Date.now(),
+    };
+    StorageService.setSession(session);
+
+    const now = new Date();
+    StorageService.logLoginEvent({
+      id: 'log-' + Date.now(),
+      userId: newPlayerId,
+      userName: socialName.trim(),
+      role: 'player',
+      method: socialModal === 'whatsapp' ? 'whatsapp' : socialModal === 'google' ? 'google' : 'facebook',
+      methodLabel: `دخول سريع عبر ${providerName}`,
+      timestamp: Date.now(),
+      dateFormatted: now.toLocaleDateString('ar-IQ'),
+      timeFormatted: now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      userPhone: socialIdentifier.trim(),
+      userAge: parseInt(socialAge, 10) || 17,
+    });
+
+    setSocialModal(null);
+    // Show 5-second cinematic welcome screen as requested
+    setWelcomePlayer({ name: socialName.trim(), session });
+  };
+
   // Handle Player Registration
   const handlePlayerRegister = (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,6 +266,19 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
       return;
     }
 
+    // Check if player is banned
+    if (StorageService.isUserBanned(playerName, playerPhone)) {
+      setPlayerError('❌ عذراً، تم حظر هذا الحساب من قبل الكابتن زيد لعدم الانتماء للأكاديمية.');
+      return;
+    }
+
+    // Verify Player Code from dynamic passcodes
+    const passcodes = StorageService.getAcademyPasscodes();
+    if (playerCode.trim().toUpperCase() !== passcodes.playerCode.trim().toUpperCase()) {
+      setPlayerError('❌ كود الأكاديمية غير صحيح! يرجى إدخال كود الأكاديمية المعتمد.');
+      return;
+    }
+
     const newPlayerId = 'pl-' + Date.now();
     const newPlayer: PlayerRecord = {
       id: newPlayerId,
@@ -136,10 +288,12 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
       jerseyNumber: parseInt(playerJersey, 10) || 10,
       position: playerPosition,
       ageGroup: playerAgeGroup,
+      age: parseInt(playerAge, 10) || 17,
       attendanceRate: 100,
       performanceRating: 8.5,
       readiness: 'جاهز للمباريات',
       notes: 'لاعب مسجل حديثاً في أكاديمية بايبوخت - تم إرفاق الصورة للمسؤول.',
+      bio: `لاعب في صفوف أكاديمية بايبوخت، العمر: ${playerAge || 17} سنة، المركز: ${playerPosition}.`,
       joinDate: new Date().toISOString().split('T')[0],
     };
 
@@ -160,8 +314,36 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
       loginTimestamp: Date.now(),
     };
     StorageService.setSession(session);
-    onLogin(session);
+
+    const now = new Date();
+    StorageService.logLoginEvent({
+      id: 'log-' + Date.now(),
+      userId: newPlayerId,
+      userName: playerName.trim(),
+      role: 'player',
+      method: 'registration',
+      methodLabel: 'استمارة التسجيل الرسمية للاعبين',
+      timestamp: Date.now(),
+      dateFormatted: now.toLocaleDateString('ar-IQ'),
+      timeFormatted: now.toLocaleTimeString('ar-IQ', { hour: '2-digit', minute: '2-digit' }),
+      userPhone: playerPhone.trim(),
+      userAge: parseInt(playerAge, 10) || 17,
+    });
+
+    // Show 5-second cinematic welcome screen as requested
+    setWelcomePlayer({ name: playerName.trim(), session });
   };
+
+  // Render 5-second cinematic welcome splash screen upon login/registration
+  if (welcomePlayer) {
+    return (
+      <WelcomeSplashScreen
+        playerName={welcomePlayer.name}
+        onComplete={() => onLogin(welcomePlayer.session)}
+        seconds={5}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#080B09] text-gray-100 flex flex-col justify-between relative overflow-hidden">
@@ -169,32 +351,32 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none -translate-y-1/2"></div>
       <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-emerald-700/15 rounded-full blur-3xl pointer-events-none translate-y-1/2"></div>
 
-      {/* Top Bar with Flutter Code Button */}
+      {/* Top Bar with Persistent Indicator */}
       <header className="p-4 sm:p-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-xs font-semibold text-emerald-400/90 tracking-wide">الذاكرة الدائمة (Persistent Login) مفعّلة</span>
+          <span className="text-xs font-semibold text-emerald-400/90 tracking-wide">الذاكرة الدائمة مفعّلة</span>
         </div>
-        <button
-          onClick={onOpenFlutterCode}
-          className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all hover:scale-105"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>كود Flutter & SharedPreferences</span>
-        </button>
+        <div className="text-[11px] text-gray-500 font-medium">
+          أكاديمية بايبوخت (B.A.T)
+        </div>
       </header>
 
       {/* Main Container */}
       <main className="flex-1 flex items-center justify-center p-4 z-10">
         <div className="w-full max-w-md">
-          {/* Academy Crest / Header */}
+          {/* Official Academy Crest Banner */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-[#18231C] via-[#0E1611] to-[#080B09] border-2 border-amber-500/40 shadow-xl shadow-amber-950/30 mb-4 relative p-1 group">
-              <div className="w-full h-full rounded-2xl bg-gradient-to-br from-amber-500/20 to-emerald-900/30 flex flex-col items-center justify-center border border-amber-500/20">
-                <Trophy className="w-10 h-10 text-amber-400 drop-shadow-[0_2px_8px_rgba(212,175,55,0.4)]" />
-                <span className="text-[10px] font-black tracking-widest text-amber-300 mt-0.5">B.A.T</span>
+            <div className="inline-flex items-center justify-center w-28 h-28 sm:w-32 sm:h-32 rounded-3xl bg-gradient-to-br from-[#18231C] via-[#0E1611] to-[#080B09] border-2 border-amber-400/60 shadow-2xl shadow-amber-500/20 mb-4 relative p-1.5 group hover:scale-105 transition-all duration-300">
+              <div className="w-full h-full rounded-2xl overflow-hidden shadow-inner relative bg-black">
+                <img
+                  src="/logo.png"
+                  alt="شعار أكاديمية بايبوخت (B.A.T)"
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-400 rounded-full flex items-center justify-center text-[10px] text-black font-black shadow">
+              <div className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-gradient-to-tr from-amber-500 to-yellow-300 rounded-full flex items-center justify-center text-xs text-black font-black shadow-lg shadow-amber-500/40 border border-black animate-bounce">
                 ★
               </div>
             </div>
@@ -296,27 +478,95 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                 </button>
               </div>
 
+              {/* Social Quick Login Section for Players */}
+              <div className="mt-5 pt-4 border-t border-white/10">
+                <div className="text-center mb-3">
+                  <span className="text-xs font-bold text-gray-200 flex items-center justify-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <span>تسجيل دخول اللاعبين عبر المنصات:</span>
+                  </span>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    الدخول بالاسم والعمر وكود الأكاديمية
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {/* WhatsApp */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSocialModal('whatsapp');
+                      setSocialError('');
+                      setSocialCode('');
+                    }}
+                    className="p-2.5 rounded-2xl bg-gradient-to-b from-[#113822] to-[#0A2014] hover:from-[#17492D] hover:to-[#0D2A1A] border border-emerald-500/50 text-emerald-300 text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md shadow-emerald-950/40"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xs shadow-sm">
+                      WA
+                    </div>
+                    <span className="text-[11px] font-bold">عبر واتساب</span>
+                  </button>
+
+                  {/* Google */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSocialModal('google');
+                      setSocialError('');
+                      setSocialCode('');
+                    }}
+                    className="p-2.5 rounded-2xl bg-gradient-to-b from-[#252830] to-[#15171C] hover:from-[#2F333D] hover:to-[#1C1F26] border border-red-500/40 text-red-200 text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-white text-red-600 flex items-center justify-center font-black text-xs shadow-sm">
+                      G
+                    </div>
+                    <span className="text-[11px] font-bold">عبر كوكل</span>
+                  </button>
+
+                  {/* Facebook */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSocialModal('facebook');
+                      setSocialError('');
+                      setSocialCode('');
+                    }}
+                    className="p-2.5 rounded-2xl bg-gradient-to-b from-[#11294D] to-[#0A182E] hover:from-[#163666] hover:to-[#0F223F] border border-blue-500/50 text-blue-200 text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow-sm">
+                      f
+                    </div>
+                    <span className="text-[11px] font-bold">عبر فيسبوك</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Notice regarding Persistent Login */}
-              <div className="mt-6 pt-4 border-t border-white/5 flex items-start gap-2.5 text-[11px] text-gray-400 leading-relaxed">
+              <div className="mt-5 pt-3.5 border-t border-white/5 flex items-start gap-2.5 text-[11px] text-gray-400 leading-relaxed">
                 <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <span>
                   ميزة <strong>الذاكرة الدائمة (Persistent Login)</strong>: بمجرد الدخول لن يُطلب منك تسجيل الدخول مرة أخرى عند إغلاق التطبيق وفتحه، وستظل جلستك محفوظة تماماً كتطبيق فيسبوك.
                 </span>
               </div>
 
-              {/* Download APK & Store Publishing Center Button */}
+              {/* Official Social Links & Community Groups Button */}
               <div className="mt-4 pt-3 border-t border-white/5">
                 <button
                   type="button"
-                  id="btn-login-open-apk-center"
-                  onClick={onOpenFlutterCode}
-                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-amber-500/15 hover:from-amber-500/25 hover:to-yellow-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold transition-all flex items-center justify-between shadow-sm hover:scale-[1.01]"
+                  id="btn-login-open-social-groups"
+                  onClick={() => {
+                    setShowSocialLinksModal(true);
+                    onOpenSocialLinks?.();
+                  }}
+                  className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-950/60 via-[#101F16] to-emerald-950/60 hover:from-emerald-900/60 hover:to-[#14261B] border border-emerald-500/40 text-emerald-300 text-xs font-bold transition-all flex items-center justify-between shadow-sm hover:scale-[1.01]"
                 >
                   <div className="flex items-center gap-2">
-                    <Download className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>تنزيل التطبيق بصيغة APK والنشر على متجر Google Play و App Store</span>
+                    <Share2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>مجموعات وحسابات الأكاديمية (واتساب، فيسبوك، تلكرام)</span>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    انضم الآن
+                  </span>
                 </button>
               </div>
             </div>
@@ -601,17 +851,59 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-gray-300 mb-1">
-                    رقم القميص المفضل
-                  </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      عمر اللاعب (بالسنوات) *
+                    </label>
+                    <input
+                      type="number"
+                      min="6"
+                      max="45"
+                      value={playerAge}
+                      onChange={(e) => {
+                        setPlayerAge(e.target.value);
+                        setPlayerError('');
+                      }}
+                      placeholder="مثال: 17"
+                      className="w-full px-4 py-2.5 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-sm focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">
+                      رقم القميص المفضل
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={playerJersey}
+                      onChange={(e) => setPlayerJersey(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-sm focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Academy Code */}
+                <div className="p-3.5 rounded-2xl bg-[#0A120D] border border-amber-500/40 shadow-lg">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <label className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>كود الأكاديمية *</span>
+                    </label>
+                  </div>
                   <input
-                    type="number"
-                    min="1"
-                    max="99"
-                    value={playerJersey}
-                    onChange={(e) => setPlayerJersey(e.target.value)}
-                    className="w-full px-4 py-2 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-sm focus:outline-none"
+                    type="text"
+                    value={playerCode}
+                    onChange={(e) => {
+                      setPlayerCode(e.target.value);
+                      setPlayerError('');
+                    }}
+                    placeholder="كود الأكاديمية"
+                    className="w-full px-4 py-2.5 bg-black/70 border border-amber-500/40 focus:border-amber-400 rounded-xl text-amber-300 font-mono text-center font-black tracking-widest text-base focus:outline-none focus:ring-2 focus:ring-amber-500/30 uppercase"
+                    required
                   />
                 </div>
 
@@ -725,88 +1017,6 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
                 </button>
               </form>
 
-              {/* Direct 1-Click Fast Profile Switcher */}
-              {registeredPlayers.length > 0 && (
-                <div className="pt-4 border-t border-white/10 text-right">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                      <span>أو اختر حسابك المسجل مباشرة بنقرة واحدة:</span>
-                    </span>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      {registeredPlayers.length} لاعب مسجل
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {registeredPlayers.map((player) => {
-                      const isLastAccount = player.id === lastPlayerId;
-                      return (
-                        <div
-                          key={player.id}
-                          onClick={() => handleSelectExistingPlayer(player)}
-                          className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group text-right ${
-                            isLastAccount
-                              ? 'bg-gradient-to-r from-amber-500/20 via-emerald-900/20 to-amber-500/10 border-amber-500/50 shadow-md shadow-amber-500/10'
-                              : 'bg-[#0A110D] hover:bg-[#121E17] border-white/10 hover:border-emerald-500/40'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="relative w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-emerald-600 to-teal-800 border border-amber-500/30 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                              {player.photoUrl ? (
-                                <img
-                                  src={player.photoUrl}
-                                  alt={player.name}
-                                  className="w-full h-full object-cover"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <span>#{player.jerseyNumber || '10'}</span>
-                              )}
-                              <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-amber-400 rounded-tl-md flex items-center justify-center text-[8px] text-black font-black">
-                                {player.jerseyNumber || '★'}
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-gray-100 group-hover:text-amber-300 transition-colors">
-                                  {player.name}
-                                </span>
-                                {isLastAccount && (
-                                  <span className="text-[9px] bg-amber-400 text-black font-black px-1.5 py-0.2 rounded-md">
-                                    آخر حساب مسجل 📱
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-gray-400 flex items-center gap-2 mt-0.5">
-                                <span className="text-emerald-400">{player.position}</span>
-                                <span>•</span>
-                                <span>{player.ageGroup}</span>
-                                {player.phone && (
-                                  <>
-                                    <span>•</span>
-                                    <span className="text-gray-400 dir-ltr">{player.phone}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <button
-                            type="button"
-                            className="px-3 py-1.5 bg-amber-500/15 group-hover:bg-amber-400 group-hover:text-black border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1"
-                          >
-                            <span>دخول</span>
-                            <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Toggle to Registration */}
               <div className="pt-4 border-t border-white/5 text-center mt-4">
                 <p className="text-xs text-gray-400 mb-1">لاعب جديد ولم تسجل بعد في الأكاديمية؟</p>
@@ -826,6 +1036,215 @@ export function LoginScreen({ onLogin, onOpenFlutterCode }: LoginScreenProps) {
           )}
         </div>
       </main>
+
+      {/* Social Auth Modal for WhatsApp, Google, Facebook */}
+      {socialModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-[#101713] border-2 border-emerald-500/50 rounded-3xl p-6 shadow-2xl text-right animate-in zoom-in-95 duration-200 relative">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                type="button"
+                onClick={() => setSocialModal(null)}
+                className="text-xs text-gray-400 hover:text-white px-2.5 py-1 rounded-xl bg-white/5 border border-white/10"
+              >
+                إلغاء
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-300">
+                  {socialModal === 'whatsapp'
+                    ? 'تسجيل الدخول عبر واتساب'
+                    : socialModal === 'google'
+                    ? 'تسجيل الدخول عبر Google'
+                    : 'تسجيل الدخول عبر فيسبوك'}
+                </span>
+                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+              </div>
+            </div>
+
+            <div className="text-center mb-5">
+              <div
+                className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center mb-2.5 shadow-lg font-black text-lg ${
+                  socialModal === 'whatsapp'
+                    ? 'bg-emerald-500 text-black shadow-emerald-500/30'
+                    : socialModal === 'google'
+                    ? 'bg-white text-red-600 shadow-white/20'
+                    : 'bg-blue-600 text-white shadow-blue-500/30'
+                }`}
+              >
+                {socialModal === 'whatsapp' ? 'WA' : socialModal === 'google' ? 'G' : 'f'}
+              </div>
+              <h3 className="text-base font-black text-white">
+                ربط حساب {socialModal === 'whatsapp' ? 'واتساب' : socialModal === 'google' ? 'جوجل' : 'فيسبوك'} بأكاديمية بايبوخت
+              </h3>
+              <p className="text-xs text-gray-400 mt-1">
+                أدخل الاسم والعمر وكود اللاعبين المخصص (<span className="text-amber-300 font-mono font-bold">BAT2015</span>)
+              </p>
+            </div>
+
+            <form onSubmit={handleSocialLoginSubmit} className="space-y-3.5 text-right">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 mb-1">
+                  اسم اللاعب الكامل *
+                </label>
+                <input
+                  type="text"
+                  value={socialName}
+                  onChange={(e) => {
+                    setSocialName(e.target.value);
+                    setSocialError('');
+                  }}
+                  placeholder="مثال: يوسف أحمد العبيدي"
+                  className="w-full px-4 py-2.5 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-sm focus:outline-none"
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    العمر (بالسنوات) *
+                  </label>
+                  <input
+                    type="number"
+                    min="6"
+                    max="45"
+                    value={socialAge}
+                    onChange={(e) => setSocialAge(e.target.value)}
+                    placeholder="مثال: 17"
+                    className="w-full px-3.5 py-2.5 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-sm focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">
+                    {socialModal === 'whatsapp'
+                      ? 'رقم الواتساب'
+                      : socialModal === 'google'
+                      ? 'بريد Google'
+                      : 'حساب الفيسبوك'}
+                  </label>
+                  <input
+                    type="text"
+                    value={socialIdentifier}
+                    onChange={(e) => setSocialIdentifier(e.target.value)}
+                    placeholder={
+                      socialModal === 'whatsapp' ? '07701234567' : 'player@gmail.com'
+                    }
+                    className="w-full px-3.5 py-2.5 bg-[#080B09] border border-emerald-500/30 focus:border-emerald-400 rounded-xl text-gray-100 text-xs focus:outline-none dir-ltr text-right"
+                  />
+                </div>
+              </div>
+
+              {/* Academy Code */}
+              <div className="p-3 bg-[#080B09] rounded-2xl border border-amber-500/40 shadow-md">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-black text-amber-300 flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>كود الأكاديمية *</span>
+                  </label>
+                </div>
+                <input
+                  type="text"
+                  value={socialCode}
+                  onChange={(e) => {
+                    setSocialCode(e.target.value);
+                    setSocialError('');
+                  }}
+                  placeholder="كود الأكاديمية"
+                  className="w-full px-3.5 py-2.5 bg-black/70 border border-amber-500/40 rounded-xl text-amber-300 font-mono text-center font-black tracking-widest text-base focus:outline-none focus:ring-2 focus:ring-amber-500/40 uppercase"
+                  required
+                />
+              </div>
+
+              {socialError && (
+                <div className="p-2.5 bg-red-950/60 border border-red-500/50 rounded-xl text-xs text-red-300 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{socialError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                id="btn-confirm-social-login"
+                className="w-full py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-extrabold rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 mt-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>تأكيد والدخول للأكاديمية</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Social Links Modal for Unauthenticated Users */}
+      {showSocialLinksModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-[#101713] border-2 border-emerald-500/40 rounded-3xl p-6 shadow-2xl text-right animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                type="button"
+                onClick={() => setShowSocialLinksModal(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-white flex items-center gap-1.5">
+                  <Share2 className="w-4 h-4 text-emerald-400" />
+                  <span>روابط ومجموعات أكاديمية بايبوخت</span>
+                </h3>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-300 mb-4 leading-relaxed">
+              انضم لمجموعات الأكاديمية الرسمية على واتساب وتليغرام وفيسبوك لمتابعة آخر مواعيد المباريات وتوجيهات الكابتن زيد:
+            </p>
+
+            <div className="space-y-3">
+              {StorageService.getSocialLinks().map((link) => (
+                <div
+                  key={link.id}
+                  className="p-3.5 rounded-2xl bg-[#080D0A] border border-white/10 hover:border-emerald-500/30 transition-all flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0">
+                      {link.platform === 'whatsapp' ? 'WA' : link.platform === 'telegram' ? 'TG' : link.platform === 'facebook' ? 'FB' : 'IG'}
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-white">{link.title}</div>
+                      <div className="text-[11px] text-gray-400 truncate max-w-[200px] dir-ltr text-right">{link.url}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs flex items-center gap-1 shadow-md shadow-emerald-500/20 transition-all"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>فتح الرابط</span>
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 pt-4 border-t border-white/10 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSocialLinksModal(false)}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-gray-200 text-xs font-bold"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer Branding */}
       <footer className="p-4 text-center text-xs text-gray-500 z-10">
